@@ -1,0 +1,458 @@
+{
+  "name": "Daily design jobs Germany",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "was",
+              "value": "={{ $json.term }}"
+            },
+            {
+              "name": "angebotsart",
+              "value": "1"
+            },
+            {
+              "name": "size",
+              "value": "50"
+            },
+            {
+              "name": "veroeffentlichtseit",
+              "value": "14"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "jobboerse-jobsuche"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        784,
+        -16
+      ],
+      "id": "077697d8-ba41-44dd-b014-e2d0f5830500",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "ergebnisliste",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        1008,
+        -16
+      ],
+      "id": "015d0998-708d-457e-8a80-261d52b09b6c",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "af92f1a6-3f40-4b59-945b-ad84c1db6e70",
+              "name": "title",
+              "value": "={{ $json.stellenangebotsTitel }}",
+              "type": "string"
+            },
+            {
+              "id": "a16d27e7-6ead-43cd-bbbc-ac25c6f76b12",
+              "name": "company_name",
+              "value": "={{ $json.firma }}",
+              "type": "string"
+            },
+            {
+              "id": "cef3403a-1b9f-4e3b-8f30-82e4154581dd",
+              "name": "location",
+              "value": "={{ $json.stellenlokationen[0].adresse.ort }}",
+              "type": "string"
+            },
+            {
+              "id": "e437e770-4697-4b4f-a4d8-50dc5f03714c",
+              "name": "url",
+              "value": "=https://www.arbeitsagentur.de/jobsuche/jobdetail/{{ $json.referenznummer }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1904,
+        -16
+      ],
+      "id": "3eaf9087-5fae-47f3-b8e1-eaf8f07f9b97",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "jobs",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2128,
+        -16
+      ],
+      "id": "2dc0dede-6aec-41c5-aec6-f0caa9938535",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "toRecipients": "jose_reyes@outlook.de",
+        "subject": "=Design jobs today ({{ $json.jobs.length }})",
+        "bodyContent": "={{ $json.jobs.map(j => j.title + ' - ' + j.company_name + ' - '+ j.location + '\\n' + j.url).join('\\n\\n') }}",
+        "additionalFields": {
+          "bodyContentType": "Text"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        2352,
+        -16
+      ],
+      "id": "6855a7c3-91aa-4518-bd4e-a044132fe25a",
+      "name": "Send a message",
+      "webhookId": "7ef16301-659c-49e7-8ac1-0a40c52ac5a4",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xWYeGboCrksDwTab",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "50eebeff-f0f3-44a9-baac-27075921201e",
+              "leftValue": "={{ $json.stellenangebotsTitel }}",
+              "rightValue": "Design",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "99d2d34f-a611-4d63-ab08-9162d4edb336",
+              "leftValue": "={{ $json.stellenangebotsTitel }}",
+              "rightValue": "UX",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.4,
+      "position": [
+        1456,
+        -16
+      ],
+      "id": "97dd3617-8259-443e-8912-4be67b9d67f2",
+      "name": "Design Jobs"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "4b332d32-d74f-4ee1-b0cc-ac3cdc25c36c",
+              "leftValue": "={{ $json.stellenangebotsTitel }}",
+              "rightValue": "Praktik",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "a3285056-a6a1-4120-9300-ba10631d071f",
+              "leftValue": "={{ $json.stellenangebotsTitel }}",
+              "rightValue": "Internship",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "a6fa4d1a-3f72-4ad9-a0cf-51c3a9cb1290",
+              "leftValue": "={{ $json.stellenangebotsTitel }}",
+              "rightValue": "Werkstudent",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "fef40ace-4939-4d1a-811a-31ec5497b116",
+              "leftValue": "={{ $json.stellenangebotsTitel }}",
+              "rightValue": "Trainee",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "c39ebe10-c54d-458f-a4a7-b6cabf7812fd",
+              "leftValue": "={{ $json.stellenangebotsTitel }}",
+              "rightValue": "Ausbildung",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "31dcc691-6f53-43e7-a245-ab1bd615cd30",
+              "leftValue": "={{ $json.stellenangebotsTitel }}",
+              "rightValue": "Junior",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.4,
+      "position": [
+        1680,
+        -16
+      ],
+      "id": "9ce6fb92-6b9a-4bf8-bec6-107e1b0dd92f",
+      "name": "Remove Internships etc"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ef13068e-fc9d-4ad2-8836-5a573b660539",
+              "name": "term",
+              "value": "[ \"UX Designer\", \"Product Designer\", \"UI Designer\", \"UX Engineering\" ]",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        336,
+        -16
+      ],
+      "id": "2364b1fa-5020-4f1a-9936-d8008e43983d",
+      "name": "Search terms"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "term",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        -16
+      ],
+      "id": "46bdf9a2-e2c0-4d92-bd71-ca15be7fe0a4",
+      "name": "Split terms"
+    },
+    {
+      "parameters": {
+        "compare": "selectedFields",
+        "fieldsToCompare": "referenznummer",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        -16
+      ],
+      "id": "d173c4a0-8c6b-43be-81c9-c34554e0279b",
+      "name": "Remove Duplicates"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        112,
+        -16
+      ],
+      "id": "d9345dfe-007a-4d74-8ae8-c62deccd145e",
+      "name": "When clicking ‘Execute workflow’"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Design Jobs": {
+      "main": [
+        [
+          {
+            "node": "Remove Internships etc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Internships etc": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search terms": {
+      "main": [
+        [
+          {
+            "node": "Split terms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split terms": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Design Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Search terms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5352e746-90f2-415e-a3b7-2f8f10b31ae0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1b029b0408bae7a9f34a90289ea9ed778d405717e0b91d4d5dce236dd4af77e6"
+  },
+  "nodeGroups": [],
+  "id": "n6RZ4ogWn5oKo2ly",
+  "tags": []
+}

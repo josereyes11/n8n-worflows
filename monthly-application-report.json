@@ -1,0 +1,484 @@
+{
+  "name": "Monthly application report",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        208
+      ],
+      "id": "e1650389-076a-472e-8b40-dff2167fa1de",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "output": "fields",
+        "fields": [
+          "subject",
+          "bodyPreview",
+          "from",
+          "receivedDateTime"
+        ],
+        "filtersUI": {
+          "values": {
+            "filters": {
+              "foldersToInclude": [
+                "AQMkADAwATMwMAItYzYzMS00NjcyLTAwAi0wMAoALgAAA3l7Twjg8NtHuMYT1qlKjsYBADCQYnOnLNVHnBJ7Br691ycACmDSUPoAAAA="
+              ]
+            }
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        448,
+        208
+      ],
+      "id": "34020796-4111-4b06-9bbf-799e879c08e1",
+      "name": "Get many messages",
+      "webhookId": "df4845ba-3526-4c62-98aa-bfa50cee056f",
+      "executeOnce": true,
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xWYeGboCrksDwTab",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "=Subject: {{ $json.subject }}\nBody: {{ $json.bodyPreview }}",
+        "attributes": {
+          "attributes": [
+            {
+              "name": "company",
+              "description": "The employer the candidate applied to, usually named in the subject. Use the short brand name without legal suffixes like GmbH, AG, SE or (m/w/d). Example: \"Universal Music Entertainment GmbH\" → Universal Music. Never a job platform like Wellfound, Greenhouse, Ashby, LinkedIn or Personio."
+            },
+            {
+              "name": "position",
+              "description": "The job title applied for. Only a real job title. If none is mentioned, return an empty string, never the word \"Empty\"."
+            },
+            {
+              "name": "status",
+              "description": "One of: Applied, Rejected, Interview. Applied = confirmation of receipt. Rejected = Absage or \"unfortunately\". Interview = invitation to talk."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        96
+      ],
+      "id": "d7b29136-d831-4dd5-86a7-7b756a5eaeb3",
+      "name": "Information Extractor"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        752,
+        336
+      ],
+      "id": "b33f9d4f-4cd1-49ca-aae4-4d25cb7fcc66",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "aGwlTV2TkcZi6WBS",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b651b662-9dfd-4bd1-a76e-41c40506b1ee",
+              "name": "date",
+              "value": "={{ $('Get many messages').item.json.receivedDateTime.slice(0,10) }}",
+              "type": "string"
+            },
+            {
+              "id": "e65a44cd-a0d2-4eeb-b882-6cf58fa4a81f",
+              "name": "company",
+              "value": "={{ $json.output.company.replace(/\\b(GmbH|AG|SE|Entertainment)\\b|\\(m\\/w\\/d\\)/gi, '').replace(/\\s+/g, ' ').trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "c5704775-c6ae-49d6-b2de-7d39bb786ca6",
+              "name": "position",
+              "value": "={{ /empty|n\\/a|none|unspecified|not mentioned|not listed|don't have|create password/i.test($json.output.position || '') ? '' : $json.output.position }}",
+              "type": "string"
+            },
+            {
+              "id": "4869127a-ed1e-4278-9e99-1df047fe7ba6",
+              "name": "status",
+              "value": "={{ $json.output.status }}",
+              "type": "string"
+            },
+            {
+              "id": "4c4c992f-c718-4609-bfe7-9336ca044ca4",
+              "name": "emailId",
+              "value": "={{ $('Get many messages').item.json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1024,
+        208
+      ],
+      "id": "fc42492e-b866-4948-97e7-3bd3e6e9edcb",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const priority = { Rejected: 3, Interview: 2, Applied: 1 };\nconst icons = { Rejected: '🔴', Interview: '🟢', Applied: '🟡' };\nconst groups = {};\n\nfor (const item of $input.all()) {\n  const { date, company, position, status } = item.json;\n  if (!company) continue;\n\n  const key = company.toLowerCase().trim();\n  const g = groups[key] ??= { company, date, position: '', status: 'Applied' };\n\n  if (date < g.date) g.date = date;\n  if (!g.position && position) g.position = position;\n  if ((priority[status] || 0) > priority[g.status]) g.status = status;\n}\n\nreturn Object.values(groups)\n  .map(g => ({ json: { ...g, icon: icons[g.status] } }))\n  .sort((a, b) => a.json.date.localeCompare(b.json.date));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        208
+      ],
+      "id": "265e4cf8-9fdd-4f11-a816-da359cdc3225",
+      "name": "Group by company"
+    },
+    {
+      "parameters": {
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Ki1LA4pnfxxQ5GmE",
+          "mode": "list",
+          "cachedResultName": "Applications",
+          "cachedResultUrl": "/projects/wCFtIlM2mJ4KqA9a/datatables/Ki1LA4pnfxxQ5GmE"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "condition": "gt",
+              "keyValue": "0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        208
+      ],
+      "id": "89978a7d-5c45-42ce-b5eb-d9597bf67bc1",
+      "name": "Delete row(s)",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "Ki1LA4pnfxxQ5GmE",
+          "mode": "list",
+          "cachedResultName": "Applications",
+          "cachedResultUrl": "/projects/wCFtIlM2mJ4KqA9a/datatables/Ki1LA4pnfxxQ5GmE"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "position",
+              "displayName": "position",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "icon",
+              "displayName": "icon",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "emailId",
+              "displayName": "emailId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1472,
+        208
+      ],
+      "id": "264dc01c-7be9-49ca-b83b-f34948e8fe9f",
+      "name": "Insert row"
+    },
+    {
+      "parameters": {
+        "path": "report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        528
+      ],
+      "id": "60466d38-ee0c-45b1-9796-df4112ed56dc",
+      "name": "Webhook",
+      "webhookId": "c29aece7-8d39-48d8-a71c-10be528caf0b"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Ki1LA4pnfxxQ5GmE",
+          "mode": "list",
+          "cachedResultName": "Applications",
+          "cachedResultUrl": "/projects/wCFtIlM2mJ4KqA9a/datatables/Ki1LA4pnfxxQ5GmE"
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        528
+      ],
+      "id": "5ad37aba-e5d3-46cd-acd6-9f18afb4f53b",
+      "name": "Get row(s)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json)\n  .sort((a, b) => (a.date || '').localeCompare(b.date || ''));\n\nconst fmt = d => d ? d.split('-').reverse().join('.') : '';   // 2026-11-17 → 17.11.2026\nconst tint = { Rejected: '#fdecec', Interview: '#e8f6ec', Applied: '#fff8e1' };\n\nconst count = s => rows.filter(r => r.status === s).length;\nconst month = rows.length\n  ? new Date(rows.at(-1).date).toLocaleString('en-GB', { month: 'long', year: 'numeric' })\n  : '';\n\nconst tr = rows.map(r => `\n  <tr style=\"background:${tint[r.status] || '#fff'}\">\n    <td>${fmt(r.date)}</td>\n    <td>${r.company || ''}</td>\n    <td>${r.position || ''}</td>\n    <td>${r.icon || ''} ${r.status || ''}</td>\n  </tr>`).join('');\n\nconst html = `<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"><title>Applications ${month}</title>\n<style>\n  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 40px; color: #111; }\n  h1 { font-size: 20px; margin: 0 0 4px; }\n  p  { margin: 0 0 20px; color: #555; font-size: 13px; }\n  table { width: 100%; border-collapse: collapse; font-size: 12px; }\n  th { text-align: left; border-bottom: 2px solid #111; padding: 6px 8px; }\n  td { border-bottom: 1px solid #e5e5e5; padding: 6px 8px; vertical-align: top; }\n  @media print { body { margin: 15mm; } tr { break-inside: avoid; } }\n</style></head><body>\n  <h1>Applications – ${month}</h1>\n  <p>José Reyes · ${rows.length} applications · 🟡 ${count('Applied')} Applied · 🟢 ${count('Interview')} Interview · 🔴 ${count('Rejected')} Rejected</p>\n  <table>\n    <thead><tr><th>Date</th><th>Company</th><th>Position</th><th>Status</th></tr></thead>\n    <tbody>${tr}</tbody>\n  </table>\n</body></html>`;\n\nreturn [{ json: { html } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        528
+      ],
+      "id": "16e1e924-3d80-41cf-81a5-282f7b599997",
+      "name": "Build HTML"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        672,
+        528
+      ],
+      "id": "efc2e00f-d54a-4a81-8f6f-c3f79f027a40",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Delete row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many messages": {
+      "main": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Information Extractor": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Group by company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete row(s)": {
+      "main": [
+        [
+          {
+            "node": "Get many messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group by company": {
+      "main": [
+        [
+          {
+            "node": "Insert row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)": {
+      "main": [
+        [
+          {
+            "node": "Build HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a196d740-4a1e-42d1-96fe-37ce68c98288",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1b029b0408bae7a9f34a90289ea9ed778d405717e0b91d4d5dce236dd4af77e6"
+  },
+  "nodeGroups": [],
+  "id": "1lebNaflo2KSVmPd",
+  "tags": []
+}
